@@ -48,9 +48,11 @@ inventory_df['quantity_sold'] = inventory_df['quantity_sold'].fillna(0)
 inventory_df['selling_price'] = inventory_df['selling_price'].fillna(0)
 
 # -------------------------
-# Compute live stock
+# Compute live stock and total value
 # -------------------------
 inventory_df['live_stock'] = inventory_df['quantity_purchased'] - inventory_df['quantity_sold']
+inventory_df['stock_value'] = inventory_df['live_stock'] * inventory_df['cost_price']
+inventory_df['potential_revenue'] = inventory_df['live_stock'] * inventory_df['selling_price']
 
 # -------------------------
 # Rename for UI
@@ -75,10 +77,9 @@ filtered = inventory_df[inventory_df['Category'].isin(selected_category)]
 # -------------------------
 # Inventory Table
 # -------------------------
-st.subheader("📋 Product List (Live Stock)")
-
+st.markdown("### 📋 Product List (Live Stock)")
 st.dataframe(
-    filtered[['product_id', 'name', 'Category', 'Cost Price', 'Selling Price', 'live_stock']],
+    filtered[['product_id', 'name', 'Category', 'Cost Price', 'Selling Price', 'live_stock', 'stock_value']],
     use_container_width=True
 )
 
@@ -88,8 +89,9 @@ st.dataframe(
 low_stock = filtered[filtered['live_stock'] < 10]
 
 if not low_stock.empty:
-    st.error(f"⚠️ {low_stock.shape[0]} products are low on stock")
-    st.dataframe(low_stock[['product_id', 'name', 'Category', 'live_stock']])
+    st.markdown("### ⚠️ Low Stock Alerts")
+    st.error(f"⚠️ {low_stock.shape[0]} product(s) are low on stock")
+    st.dataframe(low_stock[['product_id', 'name', 'Category', 'live_stock']], use_container_width=True)
 else:
     st.success("✅ All filtered products are well stocked.")
 
@@ -97,11 +99,43 @@ else:
 # Stock Value Visualization
 # -------------------------
 st.markdown("---")
-st.subheader("💰 Stock Value by Category")
+st.markdown("### 💰 Stock Value by Category")
 
-filtered['Stock Value'] = filtered['live_stock'] * filtered['Cost Price']
-category_value = filtered.groupby('Category')['Stock Value'].sum().reset_index()
-
-fig = px.pie(category_value, names='Category', values='Stock Value',
-             title="Total Inventory Value by Category")
+category_value = filtered.groupby('Category')['stock_value'].sum().reset_index()
+fig = px.pie(category_value, names='Category', values='stock_value',
+             title="Total Inventory Value by Category", template='plotly_dark')
 st.plotly_chart(fig, use_container_width=True)
+
+# -------------------------
+# New: Profit Opportunity Summary
+# -------------------------
+st.markdown("---")
+st.markdown("### 📈 Profit Opportunity by Product")
+
+filtered['profit_margin'] = filtered['Selling Price'] - filtered['Cost Price']
+filtered['total_profit'] = filtered['profit_margin'] * filtered['live_stock']
+
+top_profit = filtered.sort_values(by='total_profit', ascending=False).head(10)
+
+fig_profit = px.bar(top_profit, x='name', y='total_profit', color='profit_margin',
+                    title="Top 10 Products by Profit Potential",
+                    labels={'total_profit': 'Total Potential Profit', 'name': 'Product'},
+                    template='plotly_dark')
+fig_profit.update_layout(xaxis_title="Product", yaxis_title="Profit")
+st.plotly_chart(fig_profit, use_container_width=True)
+
+# -------------------------
+# New: Stock Distribution by Product
+# -------------------------
+st.markdown("---")
+st.markdown("### 📦 Stock Distribution by Product")
+
+stock_bar = px.bar(
+    filtered.sort_values(by='live_stock', ascending=False),
+    x='name', y='live_stock',
+    title="Live Stock per Product",
+    color='live_stock',
+    template='plotly_dark'
+)
+stock_bar.update_layout(xaxis_title="Product", yaxis_title="Live Stock", showlegend=False)
+st.plotly_chart(stock_bar, use_container_width=True)
