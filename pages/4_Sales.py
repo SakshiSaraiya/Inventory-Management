@@ -9,13 +9,19 @@ st.title("📈 Sales Overview")
 # Connect to MySQL
 conn = get_connection()
 
-# Load sales and product data
-sales = pd.read_sql("SELECT * FROM Sales", conn)
-products = pd.read_sql("SELECT * FROM Products", conn)
+# Load data
+sales = pd.read_sql("SELECT * FROM sales", conn)
+products = pd.read_sql("SELECT * FROM product", conn)
+purchases = pd.read_sql("SELECT product_id, cost_price FROM purchases", conn)
 
-# Merge data
+# Merge product details
 sales = sales.merge(products, on='product_id', how='left')
-sales['sale_date'] = pd.to_datetime(sales['sale_date'])
+sales = sales.merge(purchases, on='product_id', how='left')
+
+# Parse dates
+sales['sales_date'] = pd.to_datetime(sales['sales_date'])
+
+# Compute revenue and profit
 sales['revenue'] = sales['quantity_sold'] * sales['selling_price']
 sales['profit'] = sales['quantity_sold'] * (sales['selling_price'] - sales['cost_price'])
 
@@ -24,27 +30,27 @@ sales['profit'] = sales['quantity_sold'] * (sales['selling_price'] - sales['cost
 # -------------------------
 st.sidebar.header("🔍 Filter Sales")
 
-all_products = sales['name'].dropna().unique()
+all_products = sales['product_name'].dropna().unique()
 product_filter = st.sidebar.multiselect("Product Name", all_products, default=list(all_products))
 
-shipped_filter = st.sidebar.selectbox("Shipped Status", ["All", "Shipped", "Unshipped"])
-payment_filter = st.sidebar.selectbox("Payment Status", ["All", "Received", "Pending"])
+shipped_filter = st.sidebar.selectbox("Shipped Status", ["All"] + sales['shipped_status'].dropna().unique().tolist())
+payment_filter = st.sidebar.selectbox("Payment Status", ["All"] + sales['payment_status'].dropna().unique().tolist())
 
-start_date = st.sidebar.date_input("Start Date", value=sales['sale_date'].min())
-end_date = st.sidebar.date_input("End Date", value=sales['sale_date'].max())
+start_date = st.sidebar.date_input("Start Date", value=sales['sales_date'].min())
+end_date = st.sidebar.date_input("End Date", value=sales['sales_date'].max())
 
-# Apply Filters
+# Apply filters
 filtered_sales = sales[
-    (sales['name'].isin(product_filter)) &
-    (sales['sale_date'] >= pd.to_datetime(start_date)) &
-    (sales['sale_date'] <= pd.to_datetime(end_date))
+    (sales['product_name'].isin(product_filter)) &
+    (sales['sales_date'] >= pd.to_datetime(start_date)) &
+    (sales['sales_date'] <= pd.to_datetime(end_date))
 ]
 
 if shipped_filter != "All":
-    filtered_sales = filtered_sales[filtered_sales['shipped'] == (shipped_filter == "Shipped")]
+    filtered_sales = filtered_sales[filtered_sales['shipped_status'] == shipped_filter]
 
 if payment_filter != "All":
-    filtered_sales = filtered_sales[filtered_sales['payment_received'] == (payment_filter == "Received")]
+    filtered_sales = filtered_sales[filtered_sales['payment_status'] == payment_filter]
 
 # -------------------------
 # Sales Table
@@ -52,7 +58,7 @@ if payment_filter != "All":
 st.subheader("📋 Sales Transactions")
 
 st.dataframe(
-    filtered_sales[['sale_id', 'sale_date', 'name', 'quantity_sold', 'revenue', 'profit', 'shipped', 'payment_received']],
+    filtered_sales[['sale_id', 'sales_date', 'product_name', 'quantity_sold', 'revenue', 'profit', 'shipped_status', 'payment_status']],
     use_container_width=True
 )
 
@@ -62,7 +68,7 @@ st.dataframe(
 st.markdown("---")
 st.subheader("🏆 Top-Selling Products")
 
-top_products = filtered_sales.groupby('name').agg({
+top_products = filtered_sales.groupby('product_name').agg({
     'quantity_sold': 'sum',
     'revenue': 'sum',
     'profit': 'sum'
@@ -71,11 +77,11 @@ top_products = filtered_sales.groupby('name').agg({
 col1, col2 = st.columns(2)
 
 with col1:
-    fig1 = px.bar(top_products, x='name', y='quantity_sold', title="Top 10 Products by Quantity")
+    fig1 = px.bar(top_products, x='product_name', y='quantity_sold', title="Top 10 Products by Quantity")
     st.plotly_chart(fig1, use_container_width=True)
 
 with col2:
-    fig2 = px.bar(top_products, x='name', y='revenue', title="Top 10 Products by Revenue")
+    fig2 = px.bar(top_products, x='product_name', y='revenue', title="Top 10 Products by Revenue")
     st.plotly_chart(fig2, use_container_width=True)
 
 # -------------------------
@@ -85,7 +91,7 @@ st.markdown("---")
 st.subheader("📆 Monthly Sales Performance")
 
 sales_monthly = filtered_sales.copy()
-sales_monthly['month'] = sales_monthly['sale_date'].dt.to_period('M').astype(str)
+sales_monthly['month'] = sales_monthly['sales_date'].dt.to_period('M').astype(str)
 monthly_grouped = sales_monthly.groupby('month')[['quantity_sold', 'revenue', 'profit']].sum().reset_index()
 
 tab1, tab2, tab3 = st.tabs(["📦 Quantity", "💰 Revenue", "📈 Profit"])
