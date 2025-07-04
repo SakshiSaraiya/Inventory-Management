@@ -5,3 +5,4 @@ openpyxl
 plotly
 sqlalchemy
 pymysql
+streamlit-extras
