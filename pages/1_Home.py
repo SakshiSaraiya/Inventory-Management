@@ -4,7 +4,7 @@ import plotly.express as px
 from db_connector import get_connection
 
 st.set_page_config(page_title="📊 Retail Dashboard", layout="wide")
-st.title("🛒 Retail Dashboard")
+st.title("📊 Retail Dashboard")
 
 # ----------------------
 # Connect to SQL
@@ -37,27 +37,60 @@ sales_merged['profit'] = sales_merged['quantity_sold'] * (sales_merged['selling_
 total_profit = sales_merged['profit'].sum()
 
 # ----------------------
-# KPI Cards
+# KPI Cards with Emojis
 # ----------------------
-st.markdown("### 📌 Key Performance Indicators")
-col1, col2, col3, col4, col5 = st.columns(5)
+st.markdown("### 🚀 Key Performance Metrics")
+k1, k2, k3, k4, k5 = st.columns(5)
 
-with col1:
-    st.metric("🧮 Total Products", total_products)
-with col2:
-    st.metric("📦 Total Stock", int(total_stock_value))
-with col3:
-    st.metric("📈 Total Units Sold", int(total_units_sold))
-with col4:
-    st.metric("💰 Total Revenue", f"₹ {total_revenue:,.2f}")
-with col5:
-    st.metric("📊 Total Profit", f"₹ {total_profit:,.2f}")
+with k1:
+    st.metric(label="🧾 Total Products", value=total_products)
+with k2:
+    st.metric(label="📦 Total Stock", value=int(total_stock_value))
+with k3:
+    st.metric(label="📈 Units Sold", value=int(total_units_sold))
+with k4:
+    st.metric(label="💰 Total Revenue", value=f"₹ {total_revenue:,.2f}")
+with k5:
+    st.metric(label="🧮 Total Profit", value=f"₹ {total_profit:,.2f}")
+
+# ----------------------
+# Highlights Section
+# ----------------------
+st.markdown("---")
+st.markdown("### 🔥 Highlights")
+
+# Best Selling Product
+top_product = sales_df.groupby('product_id')['quantity_sold'].sum().reset_index()
+top_product = top_product.merge(product_df[['product_id', 'product_name']], on='product_id', how='left')
+top_product = top_product.sort_values(by='quantity_sold', ascending=False).head(1)
+
+# Most Profitable Category
+product_df_with_profit = product_df.merge(
+    sales_merged.groupby('product_id')['profit'].sum().reset_index(),
+    on='product_id', how='left'
+)
+category_profit = product_df_with_profit.groupby('category')['profit'].sum().reset_index().sort_values(by='profit', ascending=False).head(1)
+
+h1, h2, h3 = st.columns(3)
+
+with h1:
+    if not top_product.empty:
+        st.success(f"🔥 Best-Selling Product: **{top_product.iloc[0]['product_name']}** ({int(top_product.iloc[0]['quantity_sold'])} sold)")
+with h2:
+    if not category_profit.empty:
+        st.info(f"📊 Top Category: **{category_profit.iloc[0]['category']}** (₹ {category_profit.iloc[0]['profit']:,.0f})")
+with h3:
+    recent_sales = sales_df[sales_df['sales_date'] > pd.Timestamp.now() - pd.Timedelta(days=7)]
+    past_sales = sales_df[sales_df['sales_date'] <= pd.Timestamp.now() - pd.Timedelta(days=7)]
+    change = recent_sales['quantity_sold'].sum() - past_sales['quantity_sold'].sum()
+    trend_icon = "📈" if change >= 0 else "📉"
+    st.warning(f"{trend_icon} Sales Trend: {'↑' if change >= 0 else '↓'} {abs(change)} vs last 7 days")
 
 # ----------------------
 # Low Stock Alerts
 # ----------------------
 st.markdown("---")
-st.subheader("🚨 Low Stock Alerts")
+st.markdown("### ⚠️ Low Stock Alerts")
 threshold = st.slider("Set stock threshold", 1, 50, 10)
 
 inventory = product_df.copy()
@@ -85,7 +118,7 @@ else:
 # Monthly Trend Charts
 # ----------------------
 st.markdown("---")
-st.subheader("📅 Monthly Sales Trends")
+st.markdown("### 📅 Monthly Sales Overview")
 
 sales_df['sales_date'] = pd.to_datetime(sales_df['sales_date'], errors='coerce')
 sales_df.dropna(subset=['sales_date'], inplace=True)
@@ -105,33 +138,24 @@ monthly_profit = sales_df.groupby('month')['profit'].sum().reset_index()
 monthly = monthly.merge(monthly_profit, on='month', how='left')
 
 fig = px.line(monthly, x='month', y=['quantity_sold', 'revenue', 'profit'],
-              title="📊 Monthly Sales Overview",
-              markers=True)
+              title="Monthly Sales Overview",
+              markers=True, template='plotly_dark')
 fig.update_layout(
-    legend_title_text='Metrics',
+    legend_title_text='Metric',
     xaxis_title="Month",
     yaxis_title="Amount",
-    template="plotly_white",
     plot_bgcolor='rgba(0,0,0,0)',
     paper_bgcolor='rgba(0,0,0,0)'
 )
-
 st.plotly_chart(fig, use_container_width=True)
 
 # ----------------------
-# Sales by Top Products
+# Category-wise Breakdown
 # ----------------------
 st.markdown("---")
-st.subheader("🏆 Top Selling Products")
+st.markdown("### 🧠 Visual Insights")
 
-top_products = sales_df.groupby('product_id')['quantity_sold'].sum().reset_index()
-top_products = top_products.merge(product_df[['product_id', 'product_name']], on='product_id', how='left')
-top_products = top_products.sort_values(by='quantity_sold', ascending=False).head(10)
-
-bar_fig = px.bar(top_products, x='product_name', y='quantity_sold',
-                 title="Top 10 Products by Units Sold",
-                 color='quantity_sold', text='quantity_sold')
-bar_fig.update_layout(xaxis_title="Product", yaxis_title="Units Sold", template="plotly_dark")
-bar_fig.update_traces(textposition='outside')
-
-st.plotly_chart(bar_fig, use_container_width=True)
+category_sales = product_df.merge(sales_df.groupby('product_id')['quantity_sold'].sum().reset_index(), on='product_id')
+category_grouped = category_sales.groupby('category')['quantity_sold'].sum().reset_index()
+category_fig = px.bar(category_grouped, x='category', y='quantity_sold', title="Category-wise Sales", color='quantity_sold', template='plotly_dark')
+st.plotly_chart(category_fig, use_container_width=True)
