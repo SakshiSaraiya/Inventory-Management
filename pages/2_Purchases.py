@@ -6,18 +6,25 @@ from db_connector import get_connection
 st.set_page_config(page_title="📥 Purchases", layout="wide")
 st.title("📥 Purchase Overview")
 
+# -------------------------
 # Connect to SQL
+# -------------------------
 conn = get_connection()
 
-# Load data
+# -------------------------
+# Load Data from SQL
+# -------------------------
 purchases = pd.read_sql("SELECT * FROM purchases", conn)
 
-# Parse dates
+# Debug: Show actual columns
+# st.write("📋 Columns in purchases table:", purchases.columns.tolist())
+
+# Convert date columns
 purchases['order_date'] = pd.to_datetime(purchases['order_date'], errors='coerce')
 purchases['payment_due_date'] = pd.to_datetime(purchases['payment_due_date'], errors='coerce')
 
 # -------------------------
-# Filters
+# Sidebar Filters
 # -------------------------
 st.sidebar.header("🔍 Filter Purchases")
 
@@ -43,14 +50,17 @@ filtered = purchases[
 ]
 
 # -------------------------
-# Purchase Table
+# Display Filtered Table
 # -------------------------
 st.subheader("📋 Purchase Records")
 
-st.dataframe(filtered[[
-    'purchase_id', 'product_id', 'product_name', 'category', 'vendor_name',
+# Show only available columns (defensive programming)
+expected_cols = [
+    'purchase_id', 'product_id', 'product_name', 'vendor_name',
     'quantity_purchased', 'cost_price', 'order_date', 'payment_due_date', 'payment_status'
-]], use_container_width=True)
+]
+available_cols = [col for col in expected_cols if col in filtered.columns]
+st.dataframe(filtered[available_cols], use_container_width=True)
 
 # -------------------------
 # Payment Alerts
@@ -85,11 +95,12 @@ fig_vendor = px.bar(vendor_summary, x='vendor_name', y='quantity_purchased', tit
 st.plotly_chart(fig_vendor, use_container_width=True)
 
 # -------------------------
-# Monthly Purchases
+# Monthly Purchase Trend
 # -------------------------
+st.subheader("📆 Monthly Purchase Trend")
+
 filtered['month'] = filtered['order_date'].dt.to_period('M').astype(str)
 monthly_summary = filtered.groupby('month')['quantity_purchased'].sum().reset_index()
 
-st.subheader("📆 Monthly Purchase Trend")
 fig_monthly = px.line(monthly_summary, x='month', y='quantity_purchased', title="Monthly Purchase Volume")
 st.plotly_chart(fig_monthly, use_container_width=True)
