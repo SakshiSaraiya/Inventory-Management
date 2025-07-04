@@ -9,21 +9,21 @@ st.title("📥 Purchase Overview")
 # Connect to SQL
 conn = get_connection()
 
-# Load data
-purchases = pd.read_sql("SELECT * FROM Purchases", conn)
-products = pd.read_sql("SELECT * FROM Products", conn)
+# Load data (using correct lowercase table names)
+purchases = pd.read_sql("SELECT * FROM purchases", conn)
+products = pd.read_sql("SELECT * FROM product", conn)
 
 # Merge product info
-purchases = purchases.merge(products, on="product_id", how="left")
+purchases = purchases.merge(products[['product_id', 'product_name']], on="product_id", how="left")
 purchases['order_date'] = pd.to_datetime(purchases['order_date'])
-purchases['payment_due'] = pd.to_datetime(purchases['payment_due'])
+purchases['payment_due_date'] = pd.to_datetime(purchases['payment_due_date'])
 
 # -------------------------
 # Filters
 # -------------------------
 st.sidebar.header("🔍 Filter Purchases")
 
-product_filter = st.sidebar.multiselect("Product", purchases['name'].dropna().unique(), default=purchases['name'].unique())
+product_filter = st.sidebar.multiselect("Product", purchases['product_name'].dropna().unique(), default=purchases['product_name'].unique())
 vendor_filter = st.sidebar.multiselect("Vendor", purchases['vendor_name'].dropna().unique(), default=purchases['vendor_name'].unique())
 status_filter = st.sidebar.multiselect("Payment Status", purchases['payment_status'].dropna().unique(), default=purchases['payment_status'].unique())
 start_date = st.sidebar.date_input("Start Date", purchases['order_date'].min())
@@ -31,7 +31,7 @@ end_date = st.sidebar.date_input("End Date", purchases['order_date'].max())
 
 # Apply filters
 filtered = purchases[
-    (purchases['name'].isin(product_filter)) &
+    (purchases['product_name'].isin(product_filter)) &
     (purchases['vendor_name'].isin(vendor_filter)) &
     (purchases['payment_status'].isin(status_filter)) &
     (purchases['order_date'] >= pd.to_datetime(start_date)) &
@@ -44,8 +44,8 @@ filtered = purchases[
 st.subheader("📋 Purchase Records")
 
 st.dataframe(filtered[[
-    'purchase_id', 'order_date', 'name', 'vendor_name', 'quantity_purchased',
-    'payment_due', 'payment_status'
+    'product_id', 'product_name', 'order_date', 'vendor_name',
+    'quantity_purchased', 'cost_price', 'payment_due_date', 'payment_status'
 ]], use_container_width=True)
 
 # -------------------------
@@ -56,19 +56,19 @@ st.subheader("⚠️ Payment Alerts")
 
 today = pd.to_datetime("today")
 pending = filtered[filtered['payment_status'].str.lower() == "pending"]
-overdue = filtered[(filtered['payment_status'].str.lower() != "paid") & (filtered['payment_due'] < today)]
+overdue = filtered[(filtered['payment_status'].str.lower() != "paid") & (filtered['payment_due_date'] < today)]
 
 col1, col2 = st.columns(2)
 
 with col1:
     st.warning(f"🕐 Pending Payments: {len(pending)}")
     if not pending.empty:
-        st.dataframe(pending[['vendor_name', 'name', 'payment_due']])
+        st.dataframe(pending[['vendor_name', 'product_name', 'payment_due_date']])
 
 with col2:
     st.error(f"❌ Overdue Payments: {len(overdue)}")
     if not overdue.empty:
-        st.dataframe(overdue[['vendor_name', 'name', 'payment_due']])
+        st.dataframe(overdue[['vendor_name', 'product_name', 'payment_due_date']])
 
 # -------------------------
 # Vendor-wise Purchases
