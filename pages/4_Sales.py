@@ -6,27 +6,61 @@ from db_connector import get_connection
 st.set_page_config(page_title="📈 Sales", layout="wide")
 st.title("📈 Sales Overview")
 
+# -------------------------
 # Connect to MySQL
+# -------------------------
 conn = get_connection()
 
-# Load data
-sales = pd.read_sql("SELECT * FROM sales", conn)
-products = pd.read_sql("SELECT * FROM product", conn)
-purchases = pd.read_sql("SELECT product_id, cost_price FROM purchases", conn)
+# -------------------------
+# Load raw tables
+# -------------------------
+try:
+    sales = pd.read_sql("SELECT * FROM sales", conn)
+    products = pd.read_sql("SELECT * FROM product", conn)
+    purchases = pd.read_sql("SELECT product_id, cost_price FROM purchases", conn)
+except Exception as e:
+    st.error(f"❌ Error loading data: {e}")
+    st.stop()
 
-# Merge product details
+# -------------------------
+# DEBUG: Show raw data
+# -------------------------
+st.sidebar.checkbox("Show Raw Data", key="debug")
+
+if st.session_state.debug:
+    st.subheader("🔍 Raw Sales Data")
+    st.write(sales)
+    st.write("Products Table", products)
+    st.write("Purchases Table", purchases)
+
+# -------------------------
+# Merge product and cost info
+# -------------------------
 sales = sales.merge(products, on='product_id', how='left')
 sales = sales.merge(purchases, on='product_id', how='left')
 
-# Parse dates
-sales['sales_date'] = pd.to_datetime(sales['sales_date'])
+# Check for missing merges
+if sales['product_name'].isnull().all():
+    st.warning("⚠️ No matching product_id found in `product` table. Check data consistency.")
+if sales['cost_price'].isnull().all():
+    st.warning("⚠️ No matching product_id found in `purchases` table for cost_price.")
 
-# Compute revenue and profit
+# -------------------------
+# Parse sales_date column
+# -------------------------
+try:
+    sales['sales_date'] = pd.to_datetime(sales['sales_date'], errors='coerce')
+except Exception as e:
+    st.warning(f"⚠️ Couldn't parse sales_date column: {e}")
+
+# -------------------------
+# Calculate revenue and profit
+# -------------------------
 sales['revenue'] = sales['quantity_sold'] * sales['selling_price']
 sales['profit'] = sales['quantity_sold'] * (sales['selling_price'] - sales['cost_price'])
 
 # -------------------------
-# Filters
+# Filter Section
 # -------------------------
 st.sidebar.header("🔍 Filter Sales")
 
@@ -39,7 +73,9 @@ payment_filter = st.sidebar.selectbox("Payment Status", ["All"] + sales['payment
 start_date = st.sidebar.date_input("Start Date", value=sales['sales_date'].min())
 end_date = st.sidebar.date_input("End Date", value=sales['sales_date'].max())
 
-# Apply filters
+# -------------------------
+# Apply Filters
+# -------------------------
 filtered_sales = sales[
     (sales['product_name'].isin(product_filter)) &
     (sales['sales_date'] >= pd.to_datetime(start_date)) &
@@ -53,17 +89,20 @@ if payment_filter != "All":
     filtered_sales = filtered_sales[filtered_sales['payment_status'] == payment_filter]
 
 # -------------------------
-# Sales Table
+# Display Sales Data
 # -------------------------
 st.subheader("📋 Sales Transactions")
 
-st.dataframe(
-    filtered_sales[['sale_id', 'sales_date', 'product_name', 'quantity_sold', 'revenue', 'profit', 'shipped_status', 'payment_status']],
-    use_container_width=True
-)
+if filtered_sales.empty:
+    st.warning("⚠️ No matching sales records found with current filters.")
+else:
+    st.dataframe(
+        filtered_sales[['sale_id', 'sales_date', 'product_name', 'quantity_sold', 'revenue', 'profit', 'shipped_status', 'payment_status']],
+        use_container_width=True
+    )
 
 # -------------------------
-# Top Products
+# Top Products Section
 # -------------------------
 st.markdown("---")
 st.subheader("🏆 Top-Selling Products")
@@ -85,7 +124,7 @@ with col2:
     st.plotly_chart(fig2, use_container_width=True)
 
 # -------------------------
-# Monthly Sales Trend
+# Monthly Trend Charts
 # -------------------------
 st.markdown("---")
 st.subheader("📆 Monthly Sales Performance")
