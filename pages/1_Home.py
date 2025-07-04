@@ -71,6 +71,9 @@ product_df_with_profit = product_df.merge(
 )
 category_profit = product_df_with_profit.groupby('category')['profit'].sum().reset_index().sort_values(by='profit', ascending=False).head(1)
 
+# Ensure sales_date is datetime for recent/past filtering
+sales_df['sales_date'] = pd.to_datetime(sales_df['sales_date'], errors='coerce')
+
 h1, h2, h3 = st.columns(3)
 
 with h1:
@@ -120,7 +123,6 @@ else:
 st.markdown("---")
 st.markdown("### 📅 Monthly Sales Overview")
 
-sales_df['sales_date'] = pd.to_datetime(sales_df['sales_date'], errors='coerce')
 sales_df.dropna(subset=['sales_date'], inplace=True)
 sales_df['month'] = sales_df['sales_date'].dt.to_period('M').astype(str)
 
