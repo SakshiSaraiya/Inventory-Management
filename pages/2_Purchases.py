@@ -16,9 +16,6 @@ conn = get_connection()
 # -------------------------
 purchases = pd.read_sql("SELECT * FROM purchases", conn)
 
-# Debug: Show actual columns
-# st.write("📋 Columns in purchases table:", purchases.columns.tolist())
-
 # Convert date columns
 purchases['order_date'] = pd.to_datetime(purchases['order_date'], errors='coerce')
 purchases['payment_due_date'] = pd.to_datetime(purchases['payment_due_date'], errors='coerce')
@@ -52,9 +49,7 @@ filtered = purchases[
 # -------------------------
 # Display Filtered Table
 # -------------------------
-st.subheader("📋 Purchase Records")
-
-# Show only available columns (defensive programming)
+st.markdown("### 📦 Purchase Records")
 expected_cols = [
     'purchase_id', 'product_id', 'product_name', 'vendor_name',
     'quantity_purchased', 'cost_price', 'order_date', 'payment_due_date', 'payment_status'
@@ -66,7 +61,7 @@ st.dataframe(filtered[available_cols], use_container_width=True)
 # Payment Alerts
 # -------------------------
 st.markdown("---")
-st.subheader("⚠️ Payment Alerts")
+st.markdown("### ⚠️ Payment Alerts")
 
 today = pd.to_datetime("today")
 pending = filtered[filtered['payment_status'].str.lower() == "pending"]
@@ -77,30 +72,67 @@ col1, col2 = st.columns(2)
 with col1:
     st.warning(f"🕐 Pending Payments: {len(pending)}")
     if not pending.empty:
-        st.dataframe(pending[['vendor_name', 'product_name', 'payment_due_date']])
+        st.dataframe(pending[['vendor_name', 'product_name', 'payment_due_date']], use_container_width=True)
 
 with col2:
     st.error(f"❌ Overdue Payments: {len(overdue)}")
     if not overdue.empty:
-        st.dataframe(overdue[['vendor_name', 'product_name', 'payment_due_date']])
+        st.dataframe(overdue[['vendor_name', 'product_name', 'payment_due_date']], use_container_width=True)
 
 # -------------------------
 # Vendor-wise Purchases
 # -------------------------
 st.markdown("---")
-st.subheader("🏢 Vendor-wise Purchases")
+st.markdown("### 🏢 Vendor-wise Purchases")
 
 vendor_summary = filtered.groupby('vendor_name')['quantity_purchased'].sum().reset_index()
-fig_vendor = px.bar(vendor_summary, x='vendor_name', y='quantity_purchased', title="Quantity Purchased by Vendor")
+fig_vendor = px.bar(
+    vendor_summary,
+    x='vendor_name',
+    y='quantity_purchased',
+    title="📊 Quantity Purchased by Vendor",
+    color='quantity_purchased',
+    text='quantity_purchased',
+    template='plotly_dark'
+)
+fig_vendor.update_traces(textposition="outside")
+fig_vendor.update_layout(xaxis_title="Vendor", yaxis_title="Quantity", showlegend=False)
 st.plotly_chart(fig_vendor, use_container_width=True)
 
 # -------------------------
 # Monthly Purchase Trend
 # -------------------------
-st.subheader("📆 Monthly Purchase Trend")
+st.markdown("---")
+st.markdown("### 📆 Monthly Purchase Trend")
 
 filtered['month'] = filtered['order_date'].dt.to_period('M').astype(str)
 monthly_summary = filtered.groupby('month')['quantity_purchased'].sum().reset_index()
 
-fig_monthly = px.line(monthly_summary, x='month', y='quantity_purchased', title="Monthly Purchase Volume")
+fig_monthly = px.line(
+    monthly_summary,
+    x='month',
+    y='quantity_purchased',
+    title="📈 Monthly Purchase Volume",
+    markers=True,
+    template='plotly_dark'
+)
+fig_monthly.update_layout(xaxis_title="Month", yaxis_title="Quantity Purchased")
 st.plotly_chart(fig_monthly, use_container_width=True)
+
+# -------------------------
+# Purchase Breakdown by Product
+# -------------------------
+st.markdown("---")
+st.markdown("### 🧾 Product-wise Purchase Summary")
+
+product_summary = filtered.groupby('product_name')['quantity_purchased'].sum().reset_index().sort_values(by='quantity_purchased', ascending=False)
+fig_product = px.bar(
+    product_summary,
+    x='product_name',
+    y='quantity_purchased',
+    title="Top Products by Purchase Volume",
+    color='quantity_purchased',
+    template='plotly_dark'
+)
+fig_product.update_layout(xaxis_title="Product", yaxis_title="Quantity", showlegend=False)
+st.plotly_chart(fig_product, use_container_width=True)
