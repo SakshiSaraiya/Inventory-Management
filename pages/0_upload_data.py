@@ -129,7 +129,7 @@ with st.expander("➕ Add New Sale"):
         quantity_sold = st.number_input("Quantity Sold", min_value=1)
         sales_date = st.date_input("Sales Date")
         shipped_status = st.selectbox("Shipped Status", ["Shipped", "Pending", "Cancelled"])
-        payment_status = st.selectbox("Payment Status", ["Pending", "Paid", "Failed"])
+        payment_status = st.selectbox("Payment Status", ["Received", "Pending"])
         submit = st.form_submit_button("Add Sale")
 
         if submit:
