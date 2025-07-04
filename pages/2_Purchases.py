@@ -9,23 +9,27 @@ st.title("📥 Purchase Overview")
 # Connect to SQL
 conn = get_connection()
 
-# Load data (using correct lowercase table names)
+# Load data
 purchases = pd.read_sql("SELECT * FROM purchases", conn)
-products = pd.read_sql("SELECT * FROM product", conn)
 
-# Merge product info
-purchases = purchases.merge(products[['product_id', 'product_name']], on="product_id", how="left")
-purchases['order_date'] = pd.to_datetime(purchases['order_date'])
-purchases['payment_due_date'] = pd.to_datetime(purchases['payment_due_date'])
+# Parse dates
+purchases['order_date'] = pd.to_datetime(purchases['order_date'], errors='coerce')
+purchases['payment_due_date'] = pd.to_datetime(purchases['payment_due_date'], errors='coerce')
 
 # -------------------------
 # Filters
 # -------------------------
 st.sidebar.header("🔍 Filter Purchases")
 
-product_filter = st.sidebar.multiselect("Product", purchases['product_name'].dropna().unique(), default=purchases['product_name'].unique())
-vendor_filter = st.sidebar.multiselect("Vendor", purchases['vendor_name'].dropna().unique(), default=purchases['vendor_name'].unique())
-status_filter = st.sidebar.multiselect("Payment Status", purchases['payment_status'].dropna().unique(), default=purchases['payment_status'].unique())
+product_filter = st.sidebar.multiselect(
+    "Product", purchases['product_name'].dropna().unique(), default=purchases['product_name'].unique()
+)
+vendor_filter = st.sidebar.multiselect(
+    "Vendor", purchases['vendor_name'].dropna().unique(), default=purchases['vendor_name'].unique()
+)
+status_filter = st.sidebar.multiselect(
+    "Payment Status", purchases['payment_status'].dropna().unique(), default=purchases['payment_status'].unique()
+)
 start_date = st.sidebar.date_input("Start Date", purchases['order_date'].min())
 end_date = st.sidebar.date_input("End Date", purchases['order_date'].max())
 
@@ -44,8 +48,8 @@ filtered = purchases[
 st.subheader("📋 Purchase Records")
 
 st.dataframe(filtered[[
-    'product_id', 'product_name', 'order_date', 'vendor_name',
-    'quantity_purchased', 'cost_price', 'payment_due_date', 'payment_status'
+    'purchase_id', 'product_id', 'product_name', 'category', 'vendor_name',
+    'quantity_purchased', 'cost_price', 'order_date', 'payment_due_date', 'payment_status'
 ]], use_container_width=True)
 
 # -------------------------
