@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import plotly.express as px
 from db_connector import get_connection
@@ -17,33 +17,43 @@ conn = get_connection()
 try:
     sales = pd.read_sql("SELECT * FROM sales", conn)
     products = pd.read_sql("SELECT * FROM product", conn)
-    purchases = pd.read_sql("SELECT product_id, cost_price FROM purchases", conn)
+    purchases = pd.read_sql("SELECT product_id, product_name AS product_name_purchases, cost_price FROM purchases", conn)
 except Exception as e:
     st.error(f"❌ Error loading data: {e}")
     st.stop()
 
 # -------------------------
-# DEBUG: Show raw data
+# Normalize product_id across all tables
 # -------------------------
-st.sidebar.checkbox("Show Raw Data", key="debug")
-
-if st.session_state.debug:
-    st.subheader("🔍 Raw Sales Data")
-    st.write(sales)
-    st.write("Products Table", products)
-    st.write("Purchases Table", purchases)
+sales['product_id'] = sales['product_id'].astype(str).str.strip().str.upper()
+products['product_id'] = products['product_id'].astype(str).str.strip().str.upper()
+purchases['product_id'] = purchases['product_id'].astype(str).str.strip().str.upper()
 
 # -------------------------
-# Merge product and cost info
+# Merge product info from product and purchases
 # -------------------------
 sales = sales.merge(products, on='product_id', how='left')
 sales = sales.merge(purchases, on='product_id', how='left')
 
+# Fallback logic for product_name and cost_price
+sales['product_name'] = sales['product_name'].fillna(sales['product_name_purchases'])
+
+# -------------------------
+# DEBUG: Show raw data
+# -------------------------
+if st.sidebar.checkbox("Show Raw Data", key="debug"):
+    st.subheader("🔍 Raw Sales Data")
+    st.write("Sales Table", sales)
+    st.write("Products Table", products)
+    st.write("Purchases Table", purchases)
+
+# -------------------------
 # Check for missing merges
+# -------------------------
 if sales['product_name'].isnull().all():
-    st.warning("⚠️ No matching product_id found in `product` table. Check data consistency.")
+    st.warning("⚠️ No matching product_id found in product or purchases table.")
 if sales['cost_price'].isnull().all():
-    st.warning("⚠️ No matching product_id found in `purchases` table for cost_price.")
+    st.warning("⚠️ No matching cost_price found in purchases table.")
 
 # -------------------------
 # Parse sales_date column
