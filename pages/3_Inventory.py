@@ -53,6 +53,8 @@ inventory_df['selling_price'] = inventory_df['selling_price'].fillna(0)
 inventory_df['live_stock'] = inventory_df['quantity_purchased'] - inventory_df['quantity_sold']
 inventory_df['stock_value'] = inventory_df['live_stock'] * inventory_df['cost_price']
 inventory_df['potential_revenue'] = inventory_df['live_stock'] * inventory_df['selling_price']
+inventory_df['profit_margin'] = inventory_df['selling_price'] - inventory_df['cost_price']
+inventory_df['total_profit'] = inventory_df['profit_margin'] * inventory_df['live_stock']
 
 # -------------------------
 # Rename for UI
@@ -71,8 +73,21 @@ st.sidebar.header("🔍 Filter Inventory")
 
 categories = inventory_df['Category'].dropna().unique()
 selected_category = st.sidebar.multiselect("Category", categories, default=list(categories))
+search_term = st.sidebar.text_input("Search Product")
 
 filtered = inventory_df[inventory_df['Category'].isin(selected_category)]
+if search_term:
+    filtered = filtered[filtered['name'].str.contains(search_term, case=False)]
+
+# -------------------------
+# KPI Cards
+# -------------------------
+st.markdown("### 📊 Inventory KPIs")
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("📦 Total Live Stock", int(filtered['live_stock'].sum()))
+k2.metric("💰 Stock Value", f"₹ {filtered['stock_value'].sum():,.2f}")
+k3.metric("📈 Revenue Potential", f"₹ {filtered['potential_revenue'].sum():,.2f}")
+k4.metric("📐 Avg. Margin", f"₹ {filtered['profit_margin'].mean():.2f}")
 
 # -------------------------
 # Inventory Table
@@ -103,37 +118,36 @@ st.markdown("### 💰 Stock Value by Category")
 
 category_value = filtered.groupby('Category')['stock_value'].sum().reset_index()
 fig = px.pie(category_value, names='Category', values='stock_value',
-             title="Total Inventory Value by Category", template='plotly_dark')
+             title="Total Inventory Value by Category", template='plotly_dark', hole=0.4)
 st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------
-# New: Profit Opportunity Summary
+# Profit Opportunity Summary
 # -------------------------
 st.markdown("---")
 st.markdown("### 📈 Profit Opportunity by Product")
 
-filtered['profit_margin'] = filtered['Selling Price'] - filtered['Cost Price']
-filtered['total_profit'] = filtered['profit_margin'] * filtered['live_stock']
-
-top_profit = filtered.sort_values(by='total_profit', ascending=False).head(10)
+top_n = st.slider("Top N Products by Profit", 5, 20, 10)
+top_profit = filtered.sort_values(by='total_profit', ascending=False).head(top_n)
 
 fig_profit = px.bar(top_profit, x='name', y='total_profit', color='profit_margin',
-                    title="Top 10 Products by Profit Potential",
+                    title=f"Top {top_n} Products by Profit Potential",
                     labels={'total_profit': 'Total Potential Profit', 'name': 'Product'},
                     template='plotly_dark')
 fig_profit.update_layout(xaxis_title="Product", yaxis_title="Profit")
 st.plotly_chart(fig_profit, use_container_width=True)
 
 # -------------------------
-# New: Stock Distribution by Product
+# Stock Distribution by Product
 # -------------------------
 st.markdown("---")
 st.markdown("### 📦 Stock Distribution by Product")
 
+top_stock = st.slider("Top N Products by Stock", 5, 20, 10)
 stock_bar = px.bar(
-    filtered.sort_values(by='live_stock', ascending=False),
+    filtered.sort_values(by='live_stock', ascending=False).head(top_stock),
     x='name', y='live_stock',
-    title="Live Stock per Product",
+    title=f"Top {top_stock} Products by Live Stock",
     color='live_stock',
     template='plotly_dark'
 )
