@@ -6,44 +6,55 @@ from db_connector import get_connection
 st.set_page_config(page_title="📦 Inventory", layout="wide")
 st.title("📦 Inventory Overview")
 
+# -------------------------
 # Connect to SQL
+# -------------------------
 conn = get_connection()
 
-# Load data from all tables
-product_df = pd.read_sql("SELECT * FROM product", conn)
-purchase_df = pd.read_sql("SELECT product_id, quantity_purchased, cost_price FROM purchases", conn)
-sales_df = pd.read_sql("SELECT product_id, quantity_sold, selling_price FROM sales", conn)
+# -------------------------
+# Load data
+# -------------------------
+try:
+    purchases = pd.read_sql("SELECT product_id, product_name, category, quantity_purchased, cost_price FROM purchases", conn)
+    sales = pd.read_sql("SELECT product_id, quantity_sold, selling_price FROM sales", conn)
+except Exception as e:
+    st.error(f"❌ Error loading data: {e}")
+    st.stop()
 
-# Aggregate purchases and sales
-purchase_agg = purchase_df.groupby('product_id').agg({
+# Normalize product_id
+purchases['product_id'] = purchases['product_id'].astype(str).str.strip().str.upper()
+sales['product_id'] = sales['product_id'].astype(str).str.strip().str.upper()
+
+# -------------------------
+# Aggregate stock and prices
+# -------------------------
+purchase_agg = purchases.groupby(['product_id', 'product_name', 'category']).agg({
     'quantity_purchased': 'sum',
     'cost_price': 'mean'
 }).reset_index()
 
-sales_agg = sales_df.groupby('product_id').agg({
+sales_agg = sales.groupby('product_id').agg({
     'quantity_sold': 'sum',
     'selling_price': 'mean'
 }).reset_index()
 
-# Merge all into product_df
-inventory_df = product_df.merge(purchase_agg, on='product_id', how='left')
-inventory_df = inventory_df.merge(sales_agg, on='product_id', how='left')
+# -------------------------
+# Merge aggregated data
+# -------------------------
+inventory_df = purchase_agg.merge(sales_agg, on='product_id', how='left')
 
 # Fill NaNs
-inventory_df['quantity_purchased'] = inventory_df['quantity_purchased'].fillna(0)
 inventory_df['quantity_sold'] = inventory_df['quantity_sold'].fillna(0)
-inventory_df['cost_price'] = inventory_df['cost_price'].fillna(0)
 inventory_df['selling_price'] = inventory_df['selling_price'].fillna(0)
 
-# Calculate live stock
-inventory_df['initial_stock'] = inventory_df['stock'].fillna(0)
-inventory_df['live_stock'] = (
-    inventory_df['initial_stock'] +
-    inventory_df['quantity_purchased'] -
-    inventory_df['quantity_sold']
-)
+# -------------------------
+# Compute live stock
+# -------------------------
+inventory_df['live_stock'] = inventory_df['quantity_purchased'] - inventory_df['quantity_sold']
 
-# Rename for clarity
+# -------------------------
+# Rename for UI
+# -------------------------
 inventory_df.rename(columns={
     'product_name': 'name',
     'category': 'Category',
@@ -52,7 +63,7 @@ inventory_df.rename(columns={
 }, inplace=True)
 
 # -------------------------
-# Filters
+# Sidebar Filters
 # -------------------------
 st.sidebar.header("🔍 Filter Inventory")
 
@@ -72,7 +83,7 @@ st.dataframe(
 )
 
 # -------------------------
-# Low Stock Highlight
+# Low Stock Warning
 # -------------------------
 low_stock = filtered[filtered['live_stock'] < 10]
 
@@ -83,7 +94,7 @@ else:
     st.success("✅ All filtered products are well stocked.")
 
 # -------------------------
-# Stock Value by Category
+# Stock Value Visualization
 # -------------------------
 st.markdown("---")
 st.subheader("💰 Stock Value by Category")
