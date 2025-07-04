@@ -13,7 +13,7 @@ conn = get_connection()
 
 # Load tables
 product_df = pd.read_sql("SELECT * FROM product", conn)
-purchases_df = pd.read_sql("SELECT product_id, quantity_purchased, cost_price, purchase_date FROM purchases", conn)
+purchases_df = pd.read_sql("SELECT product_id, quantity_purchased, cost_price, order_date FROM purchases", conn)
 sales_df = pd.read_sql("SELECT product_id, quantity_sold, selling_price, sales_date FROM sales", conn)
 
 # ----------------------
