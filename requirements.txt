@@ -6,3 +6,4 @@ plotly
 sqlalchemy
 pymysql
 streamlit-extras
+streamlit-lottie
