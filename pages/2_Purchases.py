@@ -21,6 +21,28 @@ purchases['order_date'] = pd.to_datetime(purchases['order_date'], errors='coerce
 purchases['payment_due_date'] = pd.to_datetime(purchases['payment_due_date'], errors='coerce')
 
 # -------------------------
+# Compute KPIs
+# -------------------------
+total_orders = purchases['purchase_id'].nunique()
+total_quantity = purchases['quantity_purchased'].sum()
+total_cost = (purchases['quantity_purchased'] * purchases['cost_price']).sum()
+vendors = purchases['vendor_name'].nunique()
+
+# -------------------------
+# KPI Display
+# -------------------------
+st.markdown("### 🚀 Key Purchase Metrics")
+k1, k2, k3, k4 = st.columns(4)
+with k1:
+    st.metric("📆 Total Orders", total_orders)
+with k2:
+    st.metric("🛋️ Units Purchased", int(total_quantity))
+with k3:
+    st.metric("💸 Total Spend", f"₹ {total_cost:,.2f}")
+with k4:
+    st.metric("💼 Vendors", vendors)
+
+# -------------------------
 # Sidebar Filters
 # -------------------------
 st.sidebar.header("🔍 Filter Purchases")
@@ -123,7 +145,7 @@ st.plotly_chart(fig_monthly, use_container_width=True)
 # Purchase Breakdown by Product
 # -------------------------
 st.markdown("---")
-st.markdown("### 🧾 Product-wise Purchase Summary")
+st.markdown("### 📟 Product-wise Purchase Summary")
 
 product_summary = filtered.groupby('product_name')['quantity_purchased'].sum().reset_index().sort_values(by='quantity_purchased', ascending=False)
 fig_product = px.bar(
