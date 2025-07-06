@@ -20,9 +20,29 @@ combined_products = pd.concat([
     purchases_df[['product_id', 'product_name', 'category']]
 ]).drop_duplicates(subset='product_id').reset_index(drop=True)
 
-total_products = combined_products['product_id'].nunique()
+# -------------------------
+# Sidebar Filters
+# -------------------------
+st.sidebar.header("🔍 Filter Dashboard")
+category_filter = st.sidebar.multiselect(
+    "Select Categories", combined_products['category'].dropna().unique(), default=combined_products['category'].unique()
+)
+product_filter = st.sidebar.multiselect(
+    "Select Products", combined_products['product_name'].dropna().unique(), default=combined_products['product_name'].unique()
+)
 
-# Aggregate stock
+# Apply filters to product lists
+filtered_products = combined_products[
+    (combined_products['category'].isin(category_filter)) &
+    (combined_products['product_name'].isin(product_filter))
+]
+
+purchases_df = purchases_df[purchases_df['product_id'].isin(filtered_products['product_id'])]
+sales_df = sales_df[sales_df['product_id'].isin(filtered_products['product_id'])]
+
+# KPIs
+total_products = filtered_products['product_id'].nunique()
+
 stock_df = purchases_df.groupby('product_id')['quantity_purchased'].sum().reset_index()
 sold_df = sales_df.groupby('product_id')['quantity_sold'].sum().reset_index()
 stock_merged = pd.merge(stock_df, sold_df, on='product_id', how='outer').fillna(0)
@@ -36,7 +56,6 @@ sales_profit = sales_df.merge(purchases_df[['product_id', 'cost_price']], on='pr
 sales_profit['profit'] = sales_profit['quantity_sold'] * (sales_profit['selling_price'] - sales_profit['cost_price'])
 total_profit = sales_profit['profit'].sum()
 
-# KPI Cards
 st.markdown("### 🚀 Key Performance Metrics")
 k1, k2, k3, k4, k5 = st.columns(5)
 with k1:
@@ -54,10 +73,10 @@ with k5:
 st.markdown("---")
 st.markdown("### 🔥 Highlights")
 top_product = sales_df.groupby('product_id')['quantity_sold'].sum().reset_index()
-top_product = top_product.merge(combined_products, on='product_id', how='left')
+top_product = top_product.merge(filtered_products, on='product_id', how='left')
 top_product = top_product.sort_values(by='quantity_sold', ascending=False).head(1)
 
-sales_profit_merged = sales_profit.merge(combined_products, on='product_id', how='left')
+sales_profit_merged = sales_profit.merge(filtered_products, on='product_id', how='left')
 category_profit = sales_profit_merged.groupby('category')['profit'].sum().reset_index().sort_values(by='profit', ascending=False).head(1)
 
 sales_df['sales_date'] = pd.to_datetime(sales_df['sales_date'], errors='coerce')
@@ -81,7 +100,7 @@ st.markdown("---")
 st.markdown("### ⚠️ Low Stock Alerts")
 threshold = st.slider("Set stock threshold", 1, 50, 10)
 
-live_inventory = combined_products.merge(stock_merged[['product_id', 'live_stock']], on='product_id', how='left')
+live_inventory = filtered_products.merge(stock_merged[['product_id', 'live_stock']], on='product_id', how='left')
 live_inventory['live_stock'].fillna(0, inplace=True)
 low_stock = live_inventory[live_inventory['live_stock'] < threshold]
 
@@ -123,8 +142,8 @@ st.plotly_chart(fig, use_container_width=True)
 
 # Category-wise Sales
 st.markdown("---")
-st.markdown("### 🧪 Visual Insights")
-category_sales = sales_df.merge(combined_products, on='product_id', how='left')
+st.markdown("### 🤪 Visual Insights")
+category_sales = sales_df.merge(filtered_products, on='product_id', how='left')
 category_grouped = category_sales.groupby('category')['quantity_sold'].sum().reset_index()
 
 if not category_grouped.empty:
