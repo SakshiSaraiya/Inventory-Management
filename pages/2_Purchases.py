@@ -23,7 +23,7 @@ purchases['payment_due_date'] = pd.to_datetime(purchases['payment_due_date'], er
 # -------------------------
 # Compute KPIs
 # -------------------------
-total_orders = purchases['purchase_id'].nunique()
+total_orders = len(purchases)
 total_quantity = purchases['quantity_purchased'].sum()
 total_cost = (purchases['quantity_purchased'] * purchases['cost_price']).sum()
 vendors = purchases['vendor_name'].nunique()
@@ -73,7 +73,7 @@ filtered = purchases[
 # -------------------------
 st.markdown("### 📦 Purchase Records")
 expected_cols = [
-    'purchase_id', 'product_id', 'product_name', 'vendor_name',
+    'product_id', 'product_name', 'category', 'vendor_name',
     'quantity_purchased', 'cost_price', 'order_date', 'payment_due_date', 'payment_status'
 ]
 available_cols = [col for col in expected_cols if col in filtered.columns]
