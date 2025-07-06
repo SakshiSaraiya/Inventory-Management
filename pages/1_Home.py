@@ -6,85 +6,60 @@ from db_connector import get_connection
 st.set_page_config(page_title="📊 Retail Dashboard", layout="wide")
 st.title("📊 Retail Dashboard")
 
-# ----------------------
 # Connect to SQL
-# ----------------------
-conn = get_connection()
+db = get_connection()
 
-# Load tables
-product_df = pd.read_sql("SELECT * FROM product", conn)
-purchases_df = pd.read_sql("SELECT product_id, quantity_purchased, cost_price, order_date FROM purchases", conn)
-sales_df = pd.read_sql("SELECT product_id, quantity_sold, selling_price, sales_date FROM sales", conn)
+# Load data
+product_df = pd.read_sql("SELECT * FROM product", db)
+purchases_df = pd.read_sql("SELECT product_id, product_name, category, quantity_purchased, cost_price, order_date FROM purchases", db)
+sales_df = pd.read_sql("SELECT product_id, quantity_sold, selling_price, sales_date FROM sales", db)
 
-# ----------------------
-# Unified Product Master
-# ----------------------
-purchases_only = purchases_df[['product_id']].drop_duplicates()
-all_products = pd.concat([product_df[['product_id']], purchases_only]).drop_duplicates('product_id')
+# Combine unique products from both product and purchases tables
+combined_products = pd.concat([
+    product_df[['product_id', 'product_name', 'category']],
+    purchases_df[['product_id', 'product_name', 'category']]
+]).drop_duplicates(subset='product_id').reset_index(drop=True)
 
-# Merge metadata from product table
-all_products = all_products.merge(product_df, on='product_id', how='left')
-all_products['product_name'].fillna("Unknown", inplace=True)
-all_products['category'].fillna("Unknown", inplace=True)
+total_products = combined_products['product_id'].nunique()
 
-# ----------------------
-# Compute Metrics
-# ----------------------
-total_products = all_products['product_id'].nunique()
+# Aggregate stock
+stock_df = purchases_df.groupby('product_id')['quantity_purchased'].sum().reset_index()
+sold_df = sales_df.groupby('product_id')['quantity_sold'].sum().reset_index()
+stock_merged = pd.merge(stock_df, sold_df, on='product_id', how='outer').fillna(0)
+stock_merged['live_stock'] = stock_merged['quantity_purchased'] - stock_merged['quantity_sold']
+total_stock_value = stock_merged['live_stock'].sum()
 
-# Stock calculations
-stock_df = purchases_df.groupby('product_id')['quantity_purchased'].sum().reset_index().merge(
-    sales_df.groupby('product_id')['quantity_sold'].sum().reset_index(),
-    on='product_id', how='outer'
-).fillna(0)
-
-stock_df['live_stock'] = stock_df['quantity_purchased'] - stock_df['quantity_sold']
-total_stock_value = stock_df['live_stock'].sum()
-
-# Revenue and Profit
-sales_df['revenue'] = sales_df['quantity_sold'] * sales_df['selling_price']
 total_units_sold = sales_df['quantity_sold'].sum()
-total_revenue = sales_df['revenue'].sum()
+total_revenue = (sales_df['quantity_sold'] * sales_df['selling_price']).sum()
 
-# Profit calculation
-sales_merged = sales_df.merge(purchases_df[['product_id', 'cost_price']], on='product_id', how='left')
-sales_merged['profit'] = sales_merged['quantity_sold'] * (sales_merged['selling_price'] - sales_merged['cost_price'])
-total_profit = sales_merged['profit'].sum()
+sales_profit = sales_df.merge(purchases_df[['product_id', 'cost_price']], on='product_id', how='left')
+sales_profit['profit'] = sales_profit['quantity_sold'] * (sales_profit['selling_price'] - sales_profit['cost_price'])
+total_profit = sales_profit['profit'].sum()
 
-# ----------------------
 # KPI Cards
-# ----------------------
 st.markdown("### 🚀 Key Performance Metrics")
 k1, k2, k3, k4, k5 = st.columns(5)
-
 with k1:
-    st.metric(label="🧾 Total Products", value=total_products)
+    st.metric("Total Products", total_products)
 with k2:
-    st.metric(label="📦 Total Stock", value=int(total_stock_value))
+    st.metric("Total Stock", int(total_stock_value))
 with k3:
-    st.metric(label="📈 Units Sold", value=int(total_units_sold))
+    st.metric("Units Sold", int(total_units_sold))
 with k4:
-    st.metric(label="💰 Total Revenue", value=f"₹ {total_revenue:,.2f}")
+    st.metric("Total Revenue", f"₹ {total_revenue:,.2f}")
 with k5:
-    st.metric(label="🧮 Total Profit", value=f"₹ {total_profit:,.2f}")
+    st.metric("Total Profit", f"₹ {total_profit:,.2f}")
 
-# ----------------------
-# Highlights Section
-# ----------------------
+# Highlights
 st.markdown("---")
 st.markdown("### 🔥 Highlights")
-
-# Best-Selling Product
 top_product = sales_df.groupby('product_id')['quantity_sold'].sum().reset_index()
-top_product = top_product.merge(all_products[['product_id', 'product_name']], on='product_id', how='left')
+top_product = top_product.merge(combined_products, on='product_id', how='left')
 top_product = top_product.sort_values(by='quantity_sold', ascending=False).head(1)
 
-# Top Category
-profit_by_product = sales_merged.groupby('product_id')['profit'].sum().reset_index()
-category_profit = all_products.merge(profit_by_product, on='product_id', how='left').groupby('category')['profit'].sum().reset_index()
-category_profit = category_profit.sort_values(by='profit', ascending=False).head(1)
+sales_profit_merged = sales_profit.merge(combined_products, on='product_id', how='left')
+category_profit = sales_profit_merged.groupby('category')['profit'].sum().reset_index().sort_values(by='profit', ascending=False).head(1)
 
-# Trend
 sales_df['sales_date'] = pd.to_datetime(sales_df['sales_date'], errors='coerce')
 recent_sales = sales_df[sales_df['sales_date'] > pd.Timestamp.now() - pd.Timedelta(days=7)]
 past_sales = sales_df[sales_df['sales_date'] <= pd.Timestamp.now() - pd.Timedelta(days=7)]
@@ -94,60 +69,49 @@ trend_icon = "📈" if change >= 0 else "📉"
 h1, h2, h3 = st.columns(3)
 with h1:
     if not top_product.empty:
-        st.success(f"🔥 Best-Selling Product: **{top_product.iloc[0]['product_name']}** ({int(top_product.iloc[0]['quantity_sold'])} sold)")
+        st.success(f"🔥 Best-Selling Product: {top_product.iloc[0]['product_name']} ({int(top_product.iloc[0]['quantity_sold'])} sold)")
 with h2:
     if not category_profit.empty:
-        st.info(f"📊 Top Category: **{category_profit.iloc[0]['category']}** (₹ {category_profit.iloc[0]['profit']:,.0f})")
+        st.info(f"📊 Top Category: {category_profit.iloc[0]['category']} (₹ {category_profit.iloc[0]['profit']:,.0f})")
 with h3:
     st.warning(f"{trend_icon} Sales Trend: {'↑' if change >= 0 else '↓'} {abs(change)} vs last 7 days")
 
-# ----------------------
 # Low Stock Alerts
-# ----------------------
 st.markdown("---")
 st.markdown("### ⚠️ Low Stock Alerts")
 threshold = st.slider("Set stock threshold", 1, 50, 10)
 
-inventory = all_products.merge(
-    purchases_df.groupby('product_id')['quantity_purchased'].sum(),
-    on='product_id', how='left'
-).merge(
-    sales_df.groupby('product_id')['quantity_sold'].sum(),
-    on='product_id', how='left'
-)
+live_inventory = combined_products.merge(stock_merged[['product_id', 'live_stock']], on='product_id', how='left')
+live_inventory['live_stock'].fillna(0, inplace=True)
+low_stock = live_inventory[live_inventory['live_stock'] < threshold]
 
-inventory['quantity_purchased'].fillna(0, inplace=True)
-inventory['quantity_sold'].fillna(0, inplace=True)
-inventory['live_stock'] = inventory['quantity_purchased'] - inventory['quantity_sold']
-
-low_stock_items = inventory[inventory['live_stock'] < threshold]
-
-if not low_stock_items.empty:
-    st.error(f"⚠️ {len(low_stock_items)} product(s) are low on stock.")
-    st.dataframe(low_stock_items[['product_id', 'product_name', 'live_stock']], use_container_width=True)
+if not low_stock.empty:
+    st.error(f"⚠️ {len(low_stock)} product(s) are low on stock.")
+    st.dataframe(low_stock[['product_id', 'product_name', 'live_stock']], use_container_width=True)
 else:
     st.success("✅ All products have sufficient stock.")
 
-# ----------------------
-# Monthly Sales Overview
-# ----------------------
+# Monthly Sales Chart
 st.markdown("---")
-st.markdown("### 📅 Monthly Sales Overview")
-
-sales_df.dropna(subset=['sales_date'], inplace=True)
+st.markdown("### 🗕️ Monthly Sales Overview")
+sales_df = sales_df.dropna(subset=['sales_date'])
 sales_df['month'] = sales_df['sales_date'].dt.to_period('M').astype(str)
 
-monthly = sales_df.groupby('month').agg({
+monthly_metrics = sales_df.groupby('month').agg({
     'quantity_sold': 'sum',
     'selling_price': 'mean'
 }).reset_index()
-monthly['revenue'] = monthly['quantity_sold'] * monthly['selling_price']
+monthly_metrics['revenue'] = monthly_metrics['quantity_sold'] * monthly_metrics['selling_price']
 
+sales_df = sales_df.merge(purchases_df[['product_id', 'cost_price']], on='product_id', how='left')
+sales_df['profit'] = sales_df['quantity_sold'] * (sales_df['selling_price'] - sales_df['cost_price'])
+sales_df['month'] = sales_df['sales_date'].dt.to_period('M').astype(str)
 monthly_profit = sales_df.groupby('month')['profit'].sum().reset_index()
-monthly = monthly.merge(monthly_profit, on='month', how='left')
+monthly_metrics = monthly_metrics.merge(monthly_profit, on='month', how='left')
 
-fig = px.line(monthly, x='month', y=['quantity_sold', 'revenue', 'profit'],
-              title="Monthly Sales Overview", markers=True, template='plotly_dark')
+fig = px.line(monthly_metrics, x='month', y=['quantity_sold', 'revenue', 'profit'],
+              title="Monthly Sales Overview",
+              markers=True, template='plotly_dark')
 fig.update_layout(
     legend_title_text='Metric',
     xaxis_title="Month",
@@ -157,17 +121,14 @@ fig.update_layout(
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# ----------------------
-# Category-wise Breakdown
-# ----------------------
+# Category-wise Sales
 st.markdown("---")
-st.markdown("### 🧠 Visual Insights")
-
-category_sales = sales_df.groupby('product_id')['quantity_sold'].sum().reset_index()
-category_sales = category_sales.merge(all_products[['product_id', 'category']], on='product_id', how='left')
-category_sales['category'].fillna("Unknown", inplace=True)
-
+st.markdown("### 🧪 Visual Insights")
+category_sales = sales_df.merge(combined_products, on='product_id', how='left')
 category_grouped = category_sales.groupby('category')['quantity_sold'].sum().reset_index()
-category_fig = px.bar(category_grouped, x='category', y='quantity_sold',
-                      title="Category-wise Sales", color='quantity_sold', template='plotly_dark')
-st.plotly_chart(category_fig, use_container_width=True)
+
+if not category_grouped.empty:
+    category_fig = px.bar(category_grouped, x='category', y='quantity_sold', title="Category-wise Sales", color='quantity_sold', template='plotly_dark')
+    st.plotly_chart(category_fig, use_container_width=True)
+else:
+    st.info("No sales data available to display category-wise insights.")
