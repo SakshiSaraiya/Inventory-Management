@@ -5,7 +5,6 @@ import requests
 # Page configuration
 st.set_page_config(
     page_title="All in One Retail Management",
-    page_icon="📦",
     layout="wide"
 )
 
@@ -55,7 +54,7 @@ st.markdown("""
 
 
 # --- Title Section ---
-st.markdown("<h1 style='text-align:center;'>📦 All in One Retail Management</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'> All in One Retail Management</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align:center; font-size:18px;'>Empowering retailers with real-time insights .</p>", unsafe_allow_html=True)
 st.markdown("<hr>", unsafe_allow_html=True)
 
@@ -63,7 +62,7 @@ st.markdown("<hr>", unsafe_allow_html=True)
 left_col, right_col = st.columns([1.2, 1])
 
 with left_col:
-    st.subheader("🔧 Features:")
+    st.subheader(" Features:")
     st.markdown("""
     - 📋 Inventory: Track stock levels, product variations, and categories.
     - 📈 Sales: View product performance, trends, and orders.
