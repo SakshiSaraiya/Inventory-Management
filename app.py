@@ -70,7 +70,7 @@ with left_col:
     - 📥 Purchases: Manage vendor performance and payment schedules.
     """)
 
-    st.subheader("🚀 Get Started:")
+    st.subheader("Get Started:")
     st.markdown("""
     1. Go to the Upload or Add Data page.
     2. Explore dashboards through the sidebar.
@@ -78,9 +78,9 @@ with left_col:
     """)
 
     st.subheader("⚙ Built With:")
-    st.markdown("-  Python + Streamlit\n- 🛢 MySQL\n- 📊 Realtime Dashboards")
+    st.markdown("-  Python + Streamlit\n- 🛢 MySQL\n-  Realtime Dashboards")
 
-    st.markdown("### 🧭 Quick Navigation:")
+    st.markdown("###  Quick Navigation:")
     col1, col2 = st.columns(2)
     with col1:
         if st.button("📤 Upload Data"):
