@@ -56,7 +56,7 @@ sales_profit = sales_df.merge(purchases_df[['product_id', 'cost_price']], on='pr
 sales_profit['profit'] = sales_profit['quantity_sold'] * (sales_profit['selling_price'] - sales_profit['cost_price'])
 total_profit = sales_profit['profit'].sum()
 
-st.markdown("### 🚀 Key Performance Metrics")
+st.markdown("### Key Performance Metrics")
 k1, k2, k3, k4, k5 = st.columns(5)
 with k1:
     st.metric("Total Products", total_products)
@@ -142,7 +142,7 @@ st.plotly_chart(fig, use_container_width=True)
 
 # Category-wise Sales
 st.markdown("---")
-st.markdown("### 🤪 Visual Insights")
+st.markdown("###  Visual Insights")
 category_sales = sales_df.merge(filtered_products, on='product_id', how='left')
 category_grouped = category_sales.groupby('category')['quantity_sold'].sum().reset_index()
 
