@@ -31,7 +31,7 @@ vendors = purchases['vendor_name'].nunique()
 # -------------------------
 # KPI Display
 # -------------------------
-st.markdown("### 🚀 Key Purchase Metrics")
+st.markdown("###  Key Purchase Metrics")
 k1, k2, k3, k4 = st.columns(4)
 with k1:
     st.metric("📆 Total Orders", total_orders)
@@ -145,7 +145,7 @@ st.plotly_chart(fig_monthly, use_container_width=True)
 # Purchase Breakdown by Product
 # -------------------------
 st.markdown("---")
-st.markdown("### 📟 Product-wise Purchase Summary")
+st.markdown("###  Product-wise Purchase Summary")
 
 product_summary = filtered.groupby('product_name')['quantity_purchased'].sum().reset_index().sort_values(by='quantity_purchased', ascending=False)
 fig_product = px.bar(
